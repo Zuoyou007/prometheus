@@ -561,11 +561,11 @@ func (ng *Engine) execEvalStmt(ctx context.Context, query *query, s *parser.Eval
 			for i, s := range mat {
 				// Point might have a different timestamp, force it to the evaluation
 				// timestamp as that is when we ran the evaluation.
-				vector[i] = Sample{Metric: s.Metric, Point: Point{V: s.Points[0].V, T: start}}
+				vector[i] = Sample{Metric: s.Metric, Point: Point{V: s.Points[0].V, T: s.Points[0].T}}
 			}
 			return vector, warnings, nil
 		case parser.ValueTypeScalar:
-			return Scalar{V: mat[0].Points[0].V, T: start}, warnings, nil
+			return Scalar{V: mat[0].Points[0].V, T: mat[0].Points[0].T}, warnings, nil
 		case parser.ValueTypeMatrix:
 			return mat, warnings, nil
 		default:
@@ -1166,7 +1166,7 @@ func (ev *evaluator) eval(expr parser.Expr) (parser.Value, storage.Warnings) {
 				outVec := call(inArgs, e.Args, enh)
 				enh.out = outVec[:0]
 				if len(outVec) > 0 {
-					ss.Points = append(ss.Points, Point{V: outVec[0].Point.V, T: ts})
+					ss.Points = append(ss.Points, Point{V: outVec[0].Point.V, T: outVec[0].Point.T})
 				}
 				// Only buffer stepRange milliseconds from the second step on.
 				it.ReduceDelta(stepRange)
@@ -1307,10 +1307,10 @@ func (ev *evaluator) eval(expr parser.Expr) (parser.Value, storage.Warnings) {
 			}
 
 			for ts := ev.startTimestamp; ts <= ev.endTimestamp; ts += ev.interval {
-				_, v, ok := ev.vectorSelectorSingle(it, e, ts)
+				rts, v, ok := ev.vectorSelectorSingle(it, e, ts)
 				if ok {
 					if ev.currentSamples < ev.maxSamples {
-						ss.Points = append(ss.Points, Point{V: v, T: ts})
+						ss.Points = append(ss.Points, Point{V: v, T: rts})
 						ev.currentSamples++
 					} else {
 						ev.error(ErrTooManySamples(env))
